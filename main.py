@@ -1,5 +1,7 @@
 import logging
 from io import BytesIO
+import requests
+from tokens import BOT_TOKEN, CHECK_TOKEN
 
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -13,7 +15,8 @@ from pyzbar.pyzbar import decode
 from PIL import Image
 
 # Токен бота (замените на свой)
-BOT_TOKEN = "7811033867:AAHgolfGA3HfJUb75v7rgwLodmkZAyg1XOg"
+url = 'https://proverkacheka.com/api/v1/check/get'
+
 
 # Инициализация бота и диспетчера
 bot = Bot(token=BOT_TOKEN)
@@ -55,9 +58,10 @@ async def handle_photo(message: types.Message):
         results = []
         for obj in decoded_objects:
             data = obj.data.decode('utf-8')
-            results.append(f"🔍 QR-код распознан:\n<code>{data}</code>")
-
-        await message.answer("\n\n".join(results), parse_mode=ParseMode.HTML)
+            request_data = {'token': CHECK_TOKEN,
+                            'qrraw': data}
+            r = requests.post(url, data=request_data)
+        await message.answer(r.text)
     else:
         await message.answer("❌ QR-код не найден. Попробуй отправить более четкое изображение.")
 
