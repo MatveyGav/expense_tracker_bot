@@ -1,5 +1,4 @@
-# Трекер расходов(t.me/tracker_expenses_bot)
-
+# [Трекер расходов](t.me/tracker_expenses_bot)
 ### Разработчик:
 Матвей Гаврилов
 
