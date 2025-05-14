@@ -1,74 +1,40 @@
 import logging
-from io import BytesIO
-import requests
-from tokens import BOT_TOKEN, CHECK_TOKEN
-
-from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import Command
-from aiogram.types import Message
-from aiogram.utils.markdown import text
+from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.fsm.storage.memory import MemoryStorage
+from config import Config
+from handlers import start, expenses, categories, reports
+from database.database import init_db
+import asyncio
 
-import cv2
-import numpy as np
-from pyzbar.pyzbar import decode
-from PIL import Image
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 
-# Токен бота (замените на свой)
-url = 'https://proverkacheka.com/api/v1/check/get'
-
-
-# Инициализация бота и диспетчера
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher()
-
-# Включаем логирование
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Команда /start
-@dp.message(Command("start"))
-async def cmd_start(message: types.Message):
-    await message.answer(
-        "👋 Привет! Я бот для распознавания QR-кодов.\n"
-        "Отправь мне изображение с QR-кодом или используй команду /qr."
-    )
-
-# Команда /qr
-@dp.message(Command("qr"))
-async def cmd_qr(message: types.Message):
-    await message.answer("📷 Отправь мне изображение с QR-кодом, и я попробую его распознать!")
-
-# Обработка изображений
-@dp.message(F.photo)
-async def handle_photo(message: types.Message):
-    # Скачиваем изображение
-    photo = message.photo[-1]  # Берем самое большое изображение
-    file = await bot.get_file(photo.file_id)
-    photo_bytes = await bot.download_file(file.file_path)
-
-    # Преобразуем в формат для OpenCV
-    pil_image = Image.open(BytesIO(photo_bytes.read()))
-    cv_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
-
-    # Пытаемся распознать QR-код
-    decoded_objects = decode(cv_image)
-
-    if decoded_objects:
-        results = []
-        for obj in decoded_objects:
-            data = obj.data.decode('utf-8')
-            request_data = {'token': CHECK_TOKEN,
-                            'qrraw': data}
-            r = requests.post(url, data=request_data)
-        await message.answer(r.text)
-    else:
-        await message.answer("❌ QR-код не найден. Попробуй отправить более четкое изображение.")
-
-# Запуск бота
 async def main():
+    bot = Bot(
+        token=Config.TELEGRAM_BOT_TOKEN,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+    )
+    dp = Dispatcher(storage=MemoryStorage())
+
+    dp.include_router(start.router)
+    dp.include_router(expenses.router)
+    dp.include_router(categories.router)
+    dp.include_router(reports.router)
+
+    init_db()
+
+    if Config.ADMIN_ID:
+        try:
+            await bot.send_message(Config.ADMIN_ID, "🟢 Бот запущен")
+        except Exception as e:
+            logging.error(f"Admin notification failed: {e}")
+
+    await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())
